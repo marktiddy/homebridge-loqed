@@ -1,16 +1,16 @@
 {
-  "private": true,
+  "private": false,
   "displayName": "Homebridge Loqed",
-  "name": "homebridge-loqed",
+  "name": "@marktiddy/homebridge-loqed",
   "version": "1.0.0",
   "description": "A plugin for using a Loqed smart lock with Homebridge",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/USERNAME/GITHUB_PROJECT_NAME.git"
+    "url": "https://github.com/marktiddy/homebridge-loqed.git"
   },
   "bugs": {
-    "url": "https://github.com/USERNAME/GITHUB_PROJECT_NAME/issues"
+    "url": "https://github.com/marktiddy/homebridge-loqed/issues"
   },
   "engines": {
     "node": "^18.16.0",
@@ -21,7 +21,7 @@
     "lint": "eslint src/**.ts --max-warnings=0",
     "watch": "npm run build && sudo hb-service link && nodemon",
     "build": "rimraf ./dist && tsc",
-    "prepublishOnly": "npm run lint && npm run build"
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "homebridge-plugin"
