@@ -84,6 +84,7 @@ export class LoqedPlatformAccessory {
             case "GO_TO_STATE_MANUAL_LOCK_REMOTE_NIGHT_LOCK":
               // Door is Locked
               this.lockStatus = 1;
+              this.handleLockTargetStateGet;
               break;
             case "STATE_CHANGED_LATCH":
             case "STATE_CHANGED_LATCH_REMOTE":
@@ -91,12 +92,9 @@ export class LoqedPlatformAccessory {
             case "GO_TO_STATE_MANUAL_UNLOCK_REMOTE_OPEN":
               // Door is Unlocked
               this.lockStatus = 0;
+              this.handleLockTargetStateGet;
               break;
           }
-
-          setTimeout(() => {
-            this.handleLockTargetStateGet;
-          }, 1000);
         }
 
         if (batteryUpdate) {
@@ -109,7 +107,6 @@ export class LoqedPlatformAccessory {
             this.handleStatusLowBatteryGet;
           }
         }
-        console.log(req.body);
       }
       res.status(200).send("OK");
     });
@@ -171,9 +168,6 @@ export class LoqedPlatformAccessory {
         currentValue = this.platform.Characteristic.LockTargetState.SECURED;
         break;
     }
-
-    // set this to a valid value for LockTargetState
-    // This can be UNSECURED, SECURED
 
     return currentValue;
   }
@@ -246,10 +240,12 @@ export class LoqedPlatformAccessory {
 
         if (resLockStatus === 3) {
           // Locked
+          this.platform.log.debug("Initial lock status is locked");
           this.lockStatus = 1;
           this.handleLockTargetStateGet;
         } else if (resLockStatus === 2 || resLockStatus === 1) {
           // Unlocked
+          this.platform.log.debug("Initial lock status is unlocked");
           this.lockStatus = 0;
           this.handleLockTargetStateGet;
         }
