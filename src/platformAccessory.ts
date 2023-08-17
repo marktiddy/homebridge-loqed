@@ -175,21 +175,22 @@ export class LoqedPlatformAccessory {
   /**
    * Handle requests to set the "Lock Target State" characteristic
    */
-  async handleLockTargetStateSet(value) {
+  handleLockTargetStateSet(value) {
     const secret = this.platform.config.key; //Secret
     const token = this.platform.config.token;
     const lockID = this.platform.config.lockID;
     const keyID = this.platform.config.localKeyID;
     const baseURL = "https://app.loqed.com/API/lock_command.php?api_token=";
     let base64command;
+    this.lockStatus = value;
 
     if (value === 1) {
       // Lock
-      this.platform.log.info("Trying to unlock Loqed", lockID);
+      this.platform.log.info("Trying to lock Loqed with ID", lockID);
       base64command = this.makeLoqedCommand(keyID, 7, 3, secret);
     } else {
       // Unlock
-      this.platform.log.info("Trying to lock Loqed", lockID);
+      this.platform.log.info("Trying to unlock Loqed with ID", lockID);
       base64command = this.makeLoqedCommand(keyID, 7, 1, secret);
     }
 
@@ -205,10 +206,27 @@ export class LoqedPlatformAccessory {
       axios
         .get(finalURL)
         .then(() => {
-          // handle success
-          this.lockStatus = value;
-          this.handleLockTargetStateGet;
           this.platform.log.info("Triggered SET LockTargetState:", value);
+
+          let currentValue = this.lockStatus;
+
+          switch (this.lockStatus) {
+            case 0:
+              // unlocked
+              currentValue =
+                this.platform.Characteristic.LockTargetState.UNSECURED;
+              break;
+            case 1:
+              // locked
+              currentValue =
+                this.platform.Characteristic.LockTargetState.SECURED;
+              break;
+          }
+
+          this.service.setCharacteristic(
+            this.platform.Characteristic.LockCurrentState,
+            currentValue
+          );
         })
         .catch((error) => {
           // handle error
