@@ -2,7 +2,7 @@
   "private": false,
   "displayName": "Homebridge Loqed",
   "name": "@marktiddy/homebridge-loqed",
-  "version": "1.0.11",
+  "version": "1.1.0",
   "description": "A plugin for using a Loqed smart lock with Homebridge",
   "license": "Apache-2.0",
   "repository": {

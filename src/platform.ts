@@ -27,7 +27,7 @@ export class HomeBridgeLoqedPlatform implements DynamicPlatformPlugin {
   constructor(
     public readonly log: Logger,
     public readonly config: PlatformConfig,
-    public readonly api: API
+    public readonly api: API,
   ) {
     this.log.debug("Finished initializing platform:", this.config.name);
 
@@ -54,7 +54,7 @@ export class HomeBridgeLoqedPlatform implements DynamicPlatformPlugin {
     const uuid = this.api.hap.uuid.generate(config.lockID);
 
     const existingAccessory = this.accessories.find(
-      (accessory) => accessory.UUID === uuid
+      (accessory) => accessory.UUID === uuid,
     );
 
     if (existingAccessory) {

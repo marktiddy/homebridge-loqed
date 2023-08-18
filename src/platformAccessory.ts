@@ -1,9 +1,9 @@
 import { Service, PlatformAccessory } from "homebridge";
 import { HomeBridgeLoqedPlatform } from "./platform";
 import * as CryptoJS from "crypto-js";
-const express = require("express");
-const bodyParser = require("body-parser");
-const axios = require("axios").default;
+import express from "express";
+import bodyParser from "body-parser";
+import axios from "axios";
 
 export class LoqedPlatformAccessory {
   private service: Service;
@@ -15,7 +15,7 @@ export class LoqedPlatformAccessory {
 
   constructor(
     private readonly platform: HomeBridgeLoqedPlatform,
-    private readonly accessory: PlatformAccessory
+    private readonly accessory: PlatformAccessory,
   ) {
     this.accessory
       .getService(this.platform.Service.AccessoryInformation)!
@@ -23,7 +23,7 @@ export class LoqedPlatformAccessory {
       .setCharacteristic(this.platform.Characteristic.Model, "Touch")
       .setCharacteristic(
         this.platform.Characteristic.SerialNumber,
-        this.platform.config.lockID
+        this.platform.config.lockID,
       );
 
     this.service =
@@ -36,7 +36,7 @@ export class LoqedPlatformAccessory {
 
     this.service.setCharacteristic(
       this.platform.Characteristic.Name,
-      accessory.context.device.name
+      accessory.context.device.name,
     );
 
     // Handlers for the required characteristics
@@ -46,7 +46,7 @@ export class LoqedPlatformAccessory {
 
     this.service
       .getCharacteristic(this.platform.Characteristic.LockTargetState)
-      .onGet(this.handleLockTargetStateGet.bind(this))
+      .onGet(this.handleLockCurrentStateGet.bind(this))
       .onSet(this.handleLockTargetStateSet.bind(this));
 
     this.batteryService =
@@ -78,21 +78,50 @@ export class LoqedPlatformAccessory {
 
         // If we have an event
         if (eventType) {
+          this.platform.log.info(eventType);
           switch (eventType) {
             case "STATE_CHANGED_NIGHT_LOCK":
             case "STATE_CHANGED_NIGHT_LOCK_REMOTE":
             case "GO_TO_STATE_MANUAL_LOCK_REMOTE_NIGHT_LOCK":
-              // Door is Locked
-              this.lockStatus = 1;
-              this.handleLockTargetStateGet;
-              break;
+              if (this.lockStatus === 1) {
+                break;
+              } else {
+                // Door is Locked
+                this.lockStatus = 1;
+                this.platform.log.info("Door lock triggered from webhook");
+                this.service
+                  .getCharacteristic(
+                    this.platform.Characteristic.LockCurrentState,
+                  )
+                  .updateValue(1);
+                this.service
+                  .getCharacteristic(
+                    this.platform.Characteristic.LockTargetState,
+                  )
+                  .updateValue(1);
+                break;
+              }
             case "STATE_CHANGED_LATCH":
             case "STATE_CHANGED_LATCH_REMOTE":
             case "STATE_CHANGED_OPEN":
             case "GO_TO_STATE_MANUAL_UNLOCK_REMOTE_OPEN":
               // Door is Unlocked
-              this.lockStatus = 0;
-              this.handleLockTargetStateGet;
+              if (this.lockStatus === 0) {
+                break;
+              } else {
+                this.lockStatus = 0;
+                this.platform.log.info("Door unlock triggered from webhook");
+                this.service
+                  .getCharacteristic(
+                    this.platform.Characteristic.LockCurrentState,
+                  )
+                  .updateValue(0);
+                this.service
+                  .getCharacteristic(
+                    this.platform.Characteristic.LockTargetState,
+                  )
+                  .updateValue(0);
+              }
               break;
           }
         }
@@ -112,7 +141,7 @@ export class LoqedPlatformAccessory {
     });
 
     this.app.listen(4567, () => {
-      console.log("Lock webhook receiver listening");
+      this.platform.log.info("Lock webhook receiver listening");
     });
 
     // Function to run on first homebridge load to update the device info
@@ -151,37 +180,20 @@ export class LoqedPlatformAccessory {
   }
 
   /**
-   * Handle requests to get the current value of the "Lock Target State" characteristic
-   */
-  handleLockTargetStateGet() {
-    this.platform.log.info("Triggered GET LockTargetState");
-
-    let currentValue = 0;
-
-    switch (this.lockStatus) {
-      case 0:
-        // unlocked
-        currentValue = this.platform.Characteristic.LockTargetState.UNSECURED;
-        break;
-      case 1:
-        // locked
-        currentValue = this.platform.Characteristic.LockTargetState.SECURED;
-        break;
-    }
-
-    return currentValue;
-  }
-
-  /**
    * Handle requests to set the "Lock Target State" characteristic
    */
-  handleLockTargetStateSet(value) {
+  async handleLockTargetStateSet(value) {
     const secret = this.platform.config.key; //Secret
     const token = this.platform.config.token;
     const lockID = this.platform.config.lockID;
     const keyID = this.platform.config.localKeyID;
     const baseURL = "https://app.loqed.com/API/lock_command.php?api_token=";
-    let base64command;
+    let base64command: string;
+
+    if (this.lockStatus === value) {
+      return;
+    }
+
     this.lockStatus = value;
 
     if (value === 1) {
@@ -203,35 +215,33 @@ export class LoqedPlatformAccessory {
         "&command_signed_base64=" +
         encodeURIComponent(base64command);
 
-      axios
-        .get(finalURL)
-        .then(() => {
-          this.platform.log.info("Triggered SET LockTargetState:", value);
+      try {
+        const response = await axios.get(finalURL);
+        this.platform.log.debug(JSON.stringify(response.data));
+        this.platform.log.info("Triggered SET LockTargetState:", value);
+        let currentValue = this.lockStatus;
 
-          let currentValue = this.lockStatus;
+        switch (this.lockStatus) {
+          case 0:
+            // unlocked
+            currentValue =
+              this.platform.Characteristic.LockTargetState.UNSECURED;
+            break;
+          case 1:
+            // locked
+            currentValue = this.platform.Characteristic.LockTargetState.SECURED;
+            break;
+        }
 
-          switch (this.lockStatus) {
-            case 0:
-              // unlocked
-              currentValue =
-                this.platform.Characteristic.LockTargetState.UNSECURED;
-              break;
-            case 1:
-              // locked
-              currentValue =
-                this.platform.Characteristic.LockTargetState.SECURED;
-              break;
-          }
-
-          this.service.setCharacteristic(
-            this.platform.Characteristic.LockCurrentState,
-            currentValue
-          );
-        })
-        .catch((error) => {
-          // handle error
-          console.log(error);
-        });
+        this.service.setCharacteristic(
+          this.platform.Characteristic.LockCurrentState,
+          currentValue,
+        );
+      } catch (e) {
+        this.platform.log.warn("Updating lock failed", e);
+      } finally {
+        this.handleLockCurrentStateGet;
+      }
     }
   }
 
@@ -260,17 +270,15 @@ export class LoqedPlatformAccessory {
           // Locked
           this.platform.log.debug("Initial lock status is locked");
           this.lockStatus = 1;
-          this.handleLockTargetStateGet;
         } else if (resLockStatus === 2 || resLockStatus === 1) {
           // Unlocked
           this.platform.log.debug("Initial lock status is unlocked");
           this.lockStatus = 0;
-          this.handleLockTargetStateGet;
         }
       })
       .catch((error) => {
         // handle error
-        console.log(error);
+        this.platform.log.error(error);
       });
   }
 
@@ -290,7 +298,6 @@ export class LoqedPlatformAccessory {
       currentValue =
         this.platform.Characteristic.StatusLowBattery.BATTERY_LEVEL_LOW;
     }
-
     return currentValue;
   }
 
@@ -303,7 +310,7 @@ export class LoqedPlatformAccessory {
 
     const time = Math.floor(Date.now() / 1000);
     const secret_bin = CryptoJS.lib.WordArray.create(
-      CryptoJS.enc.Base64.parse(secret).words.slice(0, 8)
+      CryptoJS.enc.Base64.parse(secret).words.slice(0, 8),
     );
     const timenow_bin = CryptoJS.lib.WordArray.create([0, time]);
     const local_generated_binary_hash = getBin(protocol)
@@ -315,7 +322,7 @@ export class LoqedPlatformAccessory {
 
     const encrypted_binary_hash = CryptoJS.HmacSHA256(
       local_generated_binary_hash,
-      secret_bin
+      secret_bin,
     );
 
     let command = null;
@@ -335,7 +342,7 @@ export class LoqedPlatformAccessory {
           .concat(getBin(action));
         break;
       default:
-        console.error("Unknown command type");
+        this.platform.log.error("Unknown command type");
     }
 
     if (!command) {
